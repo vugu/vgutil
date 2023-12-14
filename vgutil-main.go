@@ -25,11 +25,14 @@ func main() {
 		verbose         = vgutil.Flag("verbose", "Output more logging info").Bool()
 		hash            = vgutil.Command("hash", "Compute and print a hash for a file (32-bit FNV-1a)")
 		hashIn          = hash.Arg("in", "Input file").Required().String()
+		hashRename      = vgutil.Command("hash-rename", "Rename file to include it's hash (32-bit FNV-1a)")
+		hashRenameIn    = hashRename.Arg("in", "Input file").Required().String()
+		hashRenameOut   = hashRename.Flag("out", "Output file (optional, defaults to rename alongside input file in same dir)").String()
 		watch           = vgutil.Command("watch", "Watch a directory for changes")
 		watchDirs       = watch.Arg("dirs", "Directories to watch (append /... to make it recursive)").Required().Strings()
 		pageTmpl        = vgutil.Command("page-tmpl", "Run page template tool")
 		pageTmplIn      = pageTmpl.Flag("in", "Input template file").String()
-		pageTmplOut     = pageTmpl.Flag("out", "Output HTMl file").String()
+		pageTmplOut     = pageTmpl.Flag("out", "Output HTML file").String()
 		pageTmplTmplOut = pageTmpl.Flag("tmpl-out", "Output default template file to this path (will not overwrite)").String()
 		pageTmplFiles   = pageTmpl.Arg("files", "Files to make the template aware of").Strings()
 	)
@@ -45,6 +48,37 @@ func main() {
 		}
 		h.Write(b)
 		fmt.Printf("%x\n", h.Sum(nil))
+		return
+
+	// compute hash on file and rename it
+	case hashRename.FullCommand():
+		inFname := *hashRenameIn
+		h := fnv.New32a()
+		b, err := os.ReadFile(inFname)
+		if err != nil {
+			panic(err)
+		}
+		h.Write(b)
+		hhexval := fmt.Sprintf("%x", h.Sum(nil))
+
+		inp := *hashRenameOut
+		if inp == "" {
+			inp = inFname
+		}
+
+		pathPrefix, inBaseName := filepath.Split(inp)
+		outNoSlug := stripSlug(inBaseName)
+		outExt := filepath.Ext(outNoSlug)
+		outBaseNoExt := strings.TrimSuffix(filepath.Base(outNoSlug), outExt)
+
+		outFname := filepath.Join(pathPrefix, fmt.Sprintf("%s-%s%s", outBaseNoExt, hhexval, outExt))
+
+		log.Printf("Renaming %q -> %q", inFname, outFname)
+		err = os.Rename(inFname, outFname)
+		if err != nil {
+			panic(err)
+		}
+
 		return
 
 	// wait for a change on any of the indicated directories
