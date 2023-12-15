@@ -16,13 +16,15 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/rjeczalik/notify"
+
+	_ "embed"
 )
 
 func main() {
 
 	var (
 		vgutil          = kingpin.New("vgutil", "Vugu assorted utilities")
-		verbose         = vgutil.Flag("verbose", "Output more logging info").Bool()
+		verbose         = vgutil.Flag("verbose", "Output more logging info").Short('v').Bool()
 		hash            = vgutil.Command("hash", "Compute and print a hash for a file (32-bit FNV-1a)")
 		hashIn          = hash.Arg("in", "Input file").Required().String()
 		hashRename      = vgutil.Command("hash-rename", "Rename file to include it's hash (32-bit FNV-1a)")
@@ -33,7 +35,8 @@ func main() {
 		pageTmpl        = vgutil.Command("page-tmpl", "Run page template tool")
 		pageTmplIn      = pageTmpl.Flag("in", "Input template file").String()
 		pageTmplOut     = pageTmpl.Flag("out", "Output HTML file").String()
-		pageTmplTmplOut = pageTmpl.Flag("tmpl-out", "Output default template file to this path (will not overwrite)").String()
+		pageTmplTmplOut = pageTmpl.Flag("tmpl-out", "Output default template file to this path (will not overwrite unless --force is specified)").String()
+		pageTmplForce   = pageTmpl.Flag("force", "Force overwrite of output template file").Short('f').Bool()
 		pageTmplFiles   = pageTmpl.Arg("files", "Files to make the template aware of").Strings()
 	)
 
@@ -121,13 +124,17 @@ func main() {
 	// run page template
 	case pageTmpl.FullCommand():
 
+		var err error
+
 		// tmpl-out option writes the default template out, but does not
 		// overwrite, this makes it easy for new projects
 		if *pageTmplTmplOut != "" {
-			_, err := os.Stat(*pageTmplTmplOut)
-			if err == nil {
-				log.Printf("Template file %q already exists, not overwriting", *pageTmplTmplOut)
-				return
+			if !*pageTmplForce {
+				_, err := os.Stat(*pageTmplTmplOut)
+				if err == nil {
+					log.Printf("Template file %q already exists, not overwriting", *pageTmplTmplOut)
+					return
+				}
 			}
 			if errors.Is(err, fs.ErrNotExist) { // ignore not exist error
 				err = nil
@@ -143,7 +150,6 @@ func main() {
 			return
 		}
 
-		var err error
 		tmpl := template.New("page")
 
 		type fmapEntry struct {
@@ -260,53 +266,5 @@ func stripSlug(in string) (ret string) {
 	return ret
 }
 
-var defaultPageTmpl = `<!doctype html>
-{{$prefix := ""}}
-{{$pageName := PageBaseName}}
-<html>
-<head>
-<meta charset="utf-8"/>
-<title>Vugu App</title>
-{{if FileExists $pageName ".css"}}
-<link rel="stylesheet" href="{{$prefix}}{{FileName $pageName ".css"}}" />
-{{end}}
-</head>
-<body>
-<div id="vugu_mount_point">
-<img style="position: absolute; top: 50%; left: 50%;" src="https://cdnjs.cloudflare.com/ajax/libs/galleriffic/2.0.1/css/loader.gif">
-</div>
-<script src="https://cdn.jsdelivr.net/npm/text-encoding@0.7.0/lib/encoding.min.js"></script> <!-- MS Edge polyfill -->
-<script src="{{$prefix}}{{FileName "wasm_exec.js"}}"></script>
-{{if FileExists $pageName ".js"}}
-<script src="{{$prefix}}{{FileName $pageName ".js"}}"></script>
-{{end}}
-<script>
-var wasmSupported = (typeof WebAssembly === "object");
-if (wasmSupported) {
-	if (!WebAssembly.instantiateStreaming) { // polyfill
-		WebAssembly.instantiateStreaming = async (resp, importObject) => {
-			const source = await (await resp).arrayBuffer();
-			return await WebAssembly.instantiate(source, importObject);
-		};
-	}
-	var wasmReq = fetch("{{$prefix}}{{FileName $pageName ".wasm"}}").then(function(res) {
-		if (res.ok) {
-			const go = new Go();
-			WebAssembly.instantiateStreaming(res, go.importObject).then((result) => {
-				go.run(result.instance);
-			});		
-		} else {
-			res.text().then(function(txt) {
-				var el = document.getElementById("vugu_mount_point");
-				el.style = 'font-family: monospace; background: black; color: red; padding: 10px';
-				el.innerText = txt;
-			})
-		}
-	})
-} else {
-	document.getElementById("vugu_mount_point").innerHTML = 'This application requires WebAssembly support.  Please upgrade your browser.';
-}
-</script>
-</body>
-</html>
-`
+//go:embed default-page.tmpl
+var defaultPageTmpl string
