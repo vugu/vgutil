@@ -5,8 +5,12 @@
 <head>
 <meta charset="utf-8"/>
 <title>Vugu App</title>
+{{range FileNameListForExt ".css"}}
+<link rel="stylesheet" href="{{$prefix}}{{FileName .}}" />
+{{else}}
 {{if FileExists $pageName ".css"}}
 <link rel="stylesheet" href="{{$prefix}}{{FileName $pageName ".css"}}" />
+{{end}}
 {{end}}
 </head>
 <body>
@@ -14,9 +18,13 @@
 <img style="position: absolute; top: 50%; left: 50%;" src="https://cdnjs.cloudflare.com/ajax/libs/galleriffic/2.0.1/css/loader.gif">
 </div>
 <script src="https://cdn.jsdelivr.net/npm/text-encoding@0.7.0/lib/encoding.min.js"></script> <!-- MS Edge polyfill -->
+{{range FileNameListForExt ".js"}}
+<script src="{{$prefix}}{{FileName .}}"></script>
+{{else}}
 <script src="{{$prefix}}{{FileName "wasm_exec.js"}}"></script>
 {{if FileExists $pageName ".js"}}
 <script src="{{$prefix}}{{FileName $pageName ".js"}}"></script>
+{{end}}
 {{end}}
 <script>
 var wasmSupported = (typeof WebAssembly === "object");

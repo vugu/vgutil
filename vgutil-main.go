@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -187,9 +188,11 @@ func main() {
 		pageBaseName := "index" // default if no --in param
 
 		tmpl = tmpl.Funcs(template.FuncMap{
+
 			"PageBaseName": func() string {
 				return pageBaseName
 			},
+
 			"FileName": func(parts ...string) (ret string) {
 				key := strings.Join(parts, "")
 				if *verbose {
@@ -201,6 +204,7 @@ func main() {
 				}
 				return fme.name
 			},
+
 			"FileExists": func(parts ...string) (ret bool) {
 				key := strings.Join(parts, "")
 				if *verbose {
@@ -208,6 +212,16 @@ func main() {
 				}
 				_, ok := fmap[key]
 				return ok
+			},
+
+			"FileNameListForExt": func(ext string) (ret []string) {
+				for fn := range fmap {
+					if strings.HasSuffix(fn, ext) {
+						ret = append(ret, fn)
+					}
+				}
+				sort.Strings(ret) // ensure they are in consistent order
+				return ret
 			},
 		})
 
